@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw } from "lucide-react";
@@ -9,17 +9,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { api, apiCall } from "@/lib/api";
 
 const ForecastDemand = () => {
   const products = ["Product A", "Product B", "Product C"];
   const frequencies = ["Daily", "Weekly", "Monthly"];
+  const [selectedProduct, setSelectedProduct] = useState("Product A");
+  const [selectedFrequency, setSelectedFrequency] = useState("Weekly");
+  const [forecastData, setForecastData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchForecastData = async () => {
+    setLoading(true);
+    const data = await apiCall(() =>
+      api.getForecastDemand(selectedProduct, selectedFrequency),
+    );
+    setForecastData(data);
+    setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    await apiCall(() => api.refreshData("forecast-demand"));
+    fetchForecastData();
+  };
+
+  const handleExport = async () => {
+    const blob = await apiCall(() => api.exportData("forecast-demand"));
+    if (blob) {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `forecast-demand-${selectedProduct}-${selectedFrequency}.csv`;
+      a.click();
+    }
+  };
+
+  useEffect(() => {
+    fetchForecastData();
+  }, [selectedProduct, selectedFrequency]);
 
   return (
     <div className="w-full p-4 bg-background space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Forecast Demand</h2>
         <div className="flex items-center space-x-2">
-          <Select defaultValue="Product A">
+          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select Product" />
             </SelectTrigger>
@@ -31,7 +65,10 @@ const ForecastDemand = () => {
               ))}
             </SelectContent>
           </Select>
-          <Select defaultValue="Weekly">
+          <Select
+            value={selectedFrequency}
+            onValueChange={setSelectedFrequency}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select Frequency" />
             </SelectTrigger>
@@ -43,10 +80,15 @@ const ForecastDemand = () => {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon">
-            <RefreshCw className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" onClick={handleExport}>
             <Download className="h-4 w-4" />
           </Button>
         </div>
@@ -58,7 +100,16 @@ const ForecastDemand = () => {
             Forecasted vs Actual Demand
           </div>
           <div className="h-80 w-full bg-muted/20 flex items-center justify-center border rounded-md">
-            Line Chart: Forecasted vs Actual Demand
+            {loading ? (
+              <div className="text-muted-foreground">
+                Loading forecast data...
+              </div>
+            ) : (
+              <div className="text-muted-foreground">
+                Line Chart: Forecasted vs Actual Demand (Data from
+                http://localhost:3000/api/forecast-demand)
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

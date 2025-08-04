@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, RefreshCw } from "lucide-react";
@@ -9,16 +9,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { api, apiCall } from "@/lib/api";
 
 const Scheduling = () => {
   const operators = ["Operator A", "Operator B", "Operator C"];
+  const [selectedOperator, setSelectedOperator] = useState("Operator A");
+  const [schedulingData, setSchedulingData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchSchedulingData = async () => {
+    setLoading(true);
+    const data = await apiCall(() => api.getOperatorWorkload(selectedOperator));
+    setSchedulingData(data);
+    setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    await apiCall(() => api.refreshData("scheduling"));
+    fetchSchedulingData();
+  };
+
+  const handleExport = async () => {
+    const blob = await apiCall(() => api.exportData("scheduling"));
+    if (blob) {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `scheduling-${selectedOperator}.csv`;
+      a.click();
+    }
+  };
+
+  useEffect(() => {
+    fetchSchedulingData();
+  }, [selectedOperator]);
 
   return (
     <div className="w-full p-4 bg-background space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Scheduling & Operators</h2>
         <div className="flex items-center space-x-2">
-          <Select defaultValue="Operator A">
+          <Select value={selectedOperator} onValueChange={setSelectedOperator}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select Operator" />
             </SelectTrigger>
@@ -30,10 +61,15 @@ const Scheduling = () => {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon">
-            <RefreshCw className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" onClick={handleExport}>
             <Download className="h-4 w-4" />
           </Button>
         </div>
@@ -43,7 +79,16 @@ const Scheduling = () => {
         <CardContent className="p-6">
           <div className="text-xl font-medium mb-4">Operator Workload</div>
           <div className="h-80 w-full bg-muted/20 flex items-center justify-center border rounded-md">
-            Bar Chart: Operator Workload
+            {loading ? (
+              <div className="text-muted-foreground">
+                Loading operator data...
+              </div>
+            ) : (
+              <div className="text-muted-foreground">
+                Bar Chart: Operator Workload (Data from
+                http://localhost:3000/api/operator-workload)
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

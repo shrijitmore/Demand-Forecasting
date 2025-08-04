@@ -1,14 +1,54 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, RefreshCw, Download } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import { cn } from "@/lib/utils";
+import { api, apiCall } from "@/lib/api";
 
 const Layout = () => {
   const location = useLocation();
   const { theme, setTheme } = useTheme();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleGlobalRefresh = async () => {
+    setIsRefreshing(true);
+    // Refresh all data endpoints
+    await Promise.all([
+      apiCall(() => api.refreshData("historical-sales")),
+      apiCall(() => api.refreshData("forecast-demand")),
+      apiCall(() => api.refreshData("inventory")),
+      apiCall(() => api.refreshData("scheduling")),
+      apiCall(() => api.refreshData("supplier-performance")),
+    ]);
+    setIsRefreshing(false);
+    // Reload the current page to fetch fresh data
+    window.location.reload();
+  };
+
+  const handleGlobalExport = async () => {
+    const currentPath = location.pathname;
+    let endpoint = "dashboard";
+
+    if (currentPath.includes("historical-sales")) endpoint = "historical-sales";
+    else if (currentPath.includes("forecast-demand"))
+      endpoint = "forecast-demand";
+    else if (currentPath.includes("inventory-procurement"))
+      endpoint = "inventory";
+    else if (currentPath.includes("scheduling")) endpoint = "scheduling";
+    else if (currentPath.includes("supplier-performance"))
+      endpoint = "supplier-performance";
+
+    const blob = await apiCall(() => api.exportData(endpoint));
+    if (blob) {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${endpoint}-export.csv`;
+      a.click();
+    }
+  };
 
   const tabs = [
     {
@@ -58,13 +98,22 @@ const Layout = () => {
               <Moon className="h-5 w-5" />
             )}
           </Button>
-          <Button variant="outline" size="icon" aria-label="Refresh data">
-            <RefreshCw className="h-5 w-5" />
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Refresh data"
+            onClick={handleGlobalRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw
+              className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`}
+            />
           </Button>
           <Button
             variant="outline"
             size="sm"
             className="hidden md:flex items-center gap-1"
+            onClick={handleGlobalExport}
           >
             <Download className="h-4 w-4" />
             Export
